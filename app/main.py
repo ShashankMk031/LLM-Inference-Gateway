@@ -12,6 +12,10 @@ async def root():
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(text("SELECT 1"))
-    result.scalar()
-    return {"status": "healthy", "db": "connected"}
+    try:
+        result = await db.execute(text("SELECT 1"))
+        value = result.scalar()
+        if value == 1:
+            return {"status": "healthy", "db": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "db": "disconnected", "error": str(e)}

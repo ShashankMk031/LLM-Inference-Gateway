@@ -6,8 +6,13 @@ from ..config import AsyncSessionLocal # From parent config
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]: 
     async with AsyncSessionLocal() as session: 
-        yield session 
-        await session.commit() # Auto-commit after use per request 
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        else:
+            await session.commit() 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]: 
     async with get_session() as session: 
