@@ -11,7 +11,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key = True, index = True) 
     email: Mapped[str] = mapped_column(String(255), unique = True, index = True) 
     hashed_password: Mapped[str] = mapped_column(String(255)) 
-    is_active: Mapped[bool] = mapped_column(Boolean, default = True) 
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default = "true")
 
 class APIKey(Base): 
     __tablename__ = "api_keys"
@@ -19,7 +19,7 @@ class APIKey(Base):
     id: Mapped[int] = mapped_column(primary_key = True, index = True)
     key_hash: Mapped[str] = mapped_column(String(255), unique = True, index = True) 
     rate_limit: Mapped[int] = mapped_column(Integer) # requests/minute, etc 
-    active: Mapped[bool] = mapped_column(Boolean, default = True)
+    active: Mapped[bool] = mapped_column(Boolean, server_default = "true")
 
 class RequestLog(Base): 
     __tablename__ = "request_logs" 
@@ -32,5 +32,5 @@ class RequestLog(Base):
     status: Mapped[str] = mapped_column(String(50)) # eg: "success", "failure"
     timestamp: Mapped[DateTime] = mapped_column(
         DateTime(timezone = True), 
-        server_default = fucn.now()
+        server_default = func.now()
     )
