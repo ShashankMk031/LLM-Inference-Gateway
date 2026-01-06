@@ -27,8 +27,18 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         logger.error("Health check failed", exc_info=True)
         return {"status": "unhealthy", "db": "disconnected", "error": str(e)} 
     
-@app.on_event("startup") 
-async def on_startup(): 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Shutdown (if needed)
+    # await engine.dispose()
+
+app = FastAPI(title = "LLM Inference Gateway", lifespan=lifespan)
     # Create tables if they don't exist 
     async with engine.begin() as conn: 
         await conn.run_sync(Base.metadata.create_all) 
