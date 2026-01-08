@@ -9,7 +9,7 @@ from ..db.session import get_db
 from fastapi import HTTPException, status, Header, Depends
 
 
-async def create_api_key(db: AsyncSession) -> str:
+async def create_api_key(db: AsyncSession, owner_id: int) -> str:
     # generate secure random API keys, hash it, store active entry
     raw_key = secrets.token_urlsafe(32)  # 43 chars, cryptographically secure
     loop = asyncio.get_running_loop()
@@ -19,7 +19,7 @@ async def create_api_key(db: AsyncSession) -> str:
 
     key_hash = await loop.run_in_executor(None, _compute_hash, raw_key)
 
-    api_key = APIKey(key_hash=key_hash, rate_limit=100, active=True)
+    api_key = APIKey(key_hash=key_hash, rate_limit=100, active=True, owner_id=owner_id)
     db.add(api_key)
     await db.commit()
     await db.refresh(api_key)
@@ -42,12 +42,13 @@ async def verify_api_key(api_key: Optional[str] = Header(None, alias="X-API-Key"
     max_concurrency = 50
     semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def _check_db_key(db_key: APIKey) -> bool:
+    async def _check_db_key(db_key: APIKey) -> Optional[APIKey]:
+        """Check if key matches and return the db_key on match, None otherwise."""
         async with semaphore:
-            return await loop.run_in_executor(None, bcrypt.checkpw, key_bytes, db_key.key_hash.encode())
+            is_match = await loop.run_in_executor(None, bcrypt.checkpw, key_bytes, db_key.key_hash.encode())
+            return db_key if is_match else None
 
     tasks = [asyncio.create_task(_check_db_key(db_key)) for db_key in db_keys]
-    task_map = {t: k for t, k in zip(tasks, db_keys)}
 
     try:
         for fut in asyncio.as_completed(tasks):
@@ -60,7 +61,7 @@ async def verify_api_key(api_key: Optional[str] = Header(None, alias="X-API-Key"
                 for t in tasks:
                     if not t.done():
                         t.cancel()
-                return task_map[fut]  # Valid key found
+                return match  # Valid key found (the db_key itself)
     finally:
         # ensure all tasks are cleaned up
         await asyncio.gather(*tasks, return_exceptions=True)
