@@ -20,7 +20,7 @@ class APIKey(Base):
     key_hash: Mapped[str] = mapped_column(String(255), unique = True, index = True) 
     rate_limit: Mapped[int] = mapped_column(Integer) # requests/minute, etc 
     active: Mapped[bool] = mapped_column(Boolean, server_default = "true")
-    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Nullable for migration; set NOT NULL after backfill
 
 class RequestLog(Base): 
     __tablename__ = "request_logs" 

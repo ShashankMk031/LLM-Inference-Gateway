@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from .db.session import get_db
 from .db.base import Base, User
 from .config import engine
-from .auth.jwt import get_password_hash, create_access_token, Token, get_current_user, verify_password
+from .auth.jwt import create_access_token, Token, get_current_user, verify_password
 from .auth.apikey import create_api_key, verify_api_key
 from pydantic import BaseModel
 from typing import Optional
