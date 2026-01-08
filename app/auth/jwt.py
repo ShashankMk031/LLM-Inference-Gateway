@@ -26,11 +26,13 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password) 
 
 def create_access_token(data: dict) -> str: 
-    to_encode = data.copy() 
-    expire = datetime.now(timezone.utc) + timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES) 
-    to_encode.update({"exp": expire}) 
-    encoded = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM) 
-    return encoded 
+    to_encode = data.copy()
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Use numeric timestamps for broader compatibility and include iat
+    to_encode.update({"exp": int(expire.timestamp()), "iat": int(now.timestamp())})
+    encoded = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     credentials_exception = HTTPException(

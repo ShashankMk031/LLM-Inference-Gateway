@@ -26,10 +26,10 @@ async def create_api_key(db: AsyncSession) -> str:
     return raw_key  # Return raw (client keeps it), hash stored in DB
 
 
-async def verify_api_key(api_key: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)):
+async def verify_api_key(api_key: Optional[str] = Header(None, alias="X-API-Key"), db: AsyncSession = Depends(get_db)):
     # Verify raw API key against hashed DB entries
     if not api_key:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "API key required")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "API key required (provide X-API-Key header)")
 
     key_bytes = api_key.encode()
     result = await db.execute(select(APIKey).where(APIKey.active == True))
