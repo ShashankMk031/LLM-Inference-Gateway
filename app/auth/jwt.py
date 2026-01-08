@@ -29,10 +29,10 @@ def create_access_token(data: dict) -> str:
     to_encode = data.copy() 
     expire = datetime.now(timezone.utc) + timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES) 
     to_encode.update({"exp": expire}) 
-    encoded = jwt.encode(to_encode, SECRET_KEY, algoritth = ALGORITHM) 
+    encoded = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM) 
     return encoded 
 
-async def get_current_user(token: str = Depends(security)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     credentials_exception = HTTPException(
         status_code = status.HTTP_401_UNAUTHORIZED,
         detail = "Invalid credentials",
@@ -40,11 +40,11 @@ async def get_current_user(token: str = Depends(security)):
     )
 
     try:
-        payload = jwt.decode(token , SECRET_KEY, algorithms=[ALGORITHM]) 
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub") 
         if email is None:
             raise credentials_exception
-    except jwt.PyJWTError: 
+    except jwt.InvalidTokenError:
         raise credentials_exception
     # fetch user from DB by email (dummy for now)
     return {"email": email}
