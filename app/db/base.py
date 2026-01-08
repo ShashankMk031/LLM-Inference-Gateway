@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String , Integer , Boolean, Float, DateTime, func
+from sqlalchemy import String , Integer , Boolean, Float, DateTime, func, ForeignKey
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass # All models will inherit from this base class 
@@ -20,6 +20,7 @@ class APIKey(Base):
     key_hash: Mapped[str] = mapped_column(String(255), unique = True, index = True) 
     rate_limit: Mapped[int] = mapped_column(Integer) # requests/minute, etc 
     active: Mapped[bool] = mapped_column(Boolean, server_default = "true")
+    owner_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Nullable for migration; set NOT NULL after backfill
 
 class RequestLog(Base): 
     __tablename__ = "request_logs" 
