@@ -10,6 +10,9 @@ from .auth.jwt import create_access_token, Token, get_current_user, verify_passw
 from .auth.apikey import create_api_key, verify_api_key
 from pydantic import BaseModel
 from typing import Optional
+from .middleware.auth import APIMiddleware
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LLM Inference Gateway", lifespan=lifespan)
+app.add_middleware(APIMiddleware)
 
 
 @app.get("/")
@@ -88,6 +92,19 @@ async def generate_key(
     key = await create_api_key(db, owner_id=user.id)
     return {"api_key": key, "owner_id": user.id, "message": "Save this securely - shown once"}
 
+from fastapi import Request, Depends
+
+@app.get("/protected")
+async def protected_route(request: Request):
+    return {
+        "message": "Middleware auth works!",
+        "api_key_id": request.state.api_key.id,
+        "user_id": request.state.user_id
+    }
+
+@app.get("/user-info")
+async def user_info(request: Request):
+    return request.state  # Full context dump
 
 @app.get("/protected-jwt")
 async def protected_jwt(current_user = Depends(get_current_user)):
