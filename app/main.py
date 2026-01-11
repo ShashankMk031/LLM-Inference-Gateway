@@ -1,4 +1,5 @@
 import logging
+import time
 from fastapi import FastAPI, Depends, Body, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
@@ -11,6 +12,7 @@ from .auth.apikey import create_api_key, verify_api_key
 from pydantic import BaseModel
 from typing import Optional
 from .middleware.auth import APIMiddleware
+
 
 
 
@@ -34,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LLM Inference Gateway", lifespan=lifespan)
-app.add_middleware(APIMiddleware)
+
 
 
 @app.get("/")
@@ -114,3 +116,18 @@ async def protected_jwt(current_user = Depends(get_current_user)):
 @app.get("/protected-apikey")
 async def protected_apikey(api_key = Depends(verify_api_key)):
     return {"message": "API key auth works!", "key_id": api_key.id}
+
+# Rate limiting
+from .utils.ratelimit import limiter, SlowAPIMiddleware as RateLimitMiddleware, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+app.add_middleware(RateLimitMiddleware, limiter=limiter)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.get("/hammer")
+@limiter.limit("10 per minute")
+async def hammer(request: Request):
+    return {"hits": time.time(), "key": request.state.api_key.id}
+
+# Add Auth middleware LAST so it runs FIRST (outermost layer)
+app.add_middleware(APIMiddleware)
