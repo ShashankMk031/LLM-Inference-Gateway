@@ -59,23 +59,20 @@ def api_key_limiter():
             cache_key = (func, limit_str)
             
             # Double-checked locking optimization
-            if cache_key not in _limiter_cache:
-                async with _cache_lock:
-                    if cache_key not in _limiter_cache:
-                        # Create and cache the decorated function 
-                        # Note: limiter.limit returns a decorator, which we apply to the function
-                        limit_decorator = limiter.limit(limit_str)
-                        # We need to wrap the original function, but preserve async behavior
-                        # limiter.limit wraps the function to add limit check
-                        
-                        @limit_decorator
-                        @functools.wraps(func)
-                        async def limited(request, *args, **kwargs):
-                            return await func(request, *args, **kwargs)
-                        
-                        _limiter_cache[cache_key] = limited
+            async with _cache_lock:
+                if cache_key not in _limiter_cache:
+                    limit_decorator = limiter.limit(limit_str)
+                    
+                    @limit_decorator
+                    @functools.wraps(func)
+                    async def limited(request, *args, **kwargs):
+                        return await func(request, *args, **kwargs)
+                    
+                    _limiter_cache[cache_key] = limited
+                
+                cached_func = _limiter_cache[cache_key]
             
-            return await _limiter_cache[cache_key](request, *args, **kwargs)
+            return await cached_func(request, *args, **kwargs)
         return wrapper
     return decorator
 
