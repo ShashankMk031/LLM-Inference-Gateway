@@ -8,6 +8,7 @@ load_dotenv()
 class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str = "your-secret-key-here"  # Default, should be overridden by env var
+    REDIS_URL: str = "redis://localhost:6379/0" # Default Redis URL
 
     class Config:
         env_file = ".env"
