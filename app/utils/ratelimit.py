@@ -7,6 +7,7 @@ from redis.asyncio import Redis
 from ..config import settings
 import functools
 import hashlib
+import asyncio
 from cachetools import LRUCache
 
 # Reddis connection (reuse across the app)
@@ -23,16 +24,24 @@ limiter = Limiter(
     enabled=True
 )
 
+# In-memory config sources (Simulating DB/Config Store)
+KEY_LIMITS = {
+    "1": "50 per minute",  # Admin Key
+    "2": "20 per minute",  # User Key
+}
+DEFAULT_TIER_LIMIT = "10 per minute"
+
 # Custom per-key limit (Overrides default) 
 def get_key_limit(key_id: str) -> str:
-    """Compute deterministic rate limit from key_id via sha256 hash, returning 'N per minute'"""
-    # Safe deterministic hash to integer
-    hash_val = int(hashlib.sha256(key_id.encode()).hexdigest(), 16)
-    offset = hash_val % 50
-    return f"{50 + offset} per minute" 
+    """
+    Fetch explicit configured limit for the API key.
+    Falls back to a tier-based default if not found.
+    """
+    return KEY_LIMITS.get(str(key_id), DEFAULT_TIER_LIMIT)
 
 # Cache for decorated functions to avoid recreation (Bounded LRU)
 _limiter_cache = LRUCache(maxsize=100)
+_cache_lock = asyncio.Lock()
 
 # Rate limit decorator using key-specific limit
 def api_key_limiter():
@@ -49,19 +58,22 @@ def api_key_limiter():
             # Cache key: (function reference, limit string)
             cache_key = (func, limit_str)
             
+            # Double-checked locking optimization
             if cache_key not in _limiter_cache:
-                # Create and cache the decorated function 
-                # Note: limiter.limit returns a decorator, which we apply to the function
-                limit_decorator = limiter.limit(limit_str)
-                # We need to wrap the original function, but preserve async behavior
-                # limiter.limit wraps the function to add limit check
-                
-                @limit_decorator
-                @functools.wraps(func)
-                async def limited(request, *args, **kwargs):
-                    return await func(request, *args, **kwargs)
-                
-                _limiter_cache[cache_key] = limited
+                async with _cache_lock:
+                    if cache_key not in _limiter_cache:
+                        # Create and cache the decorated function 
+                        # Note: limiter.limit returns a decorator, which we apply to the function
+                        limit_decorator = limiter.limit(limit_str)
+                        # We need to wrap the original function, but preserve async behavior
+                        # limiter.limit wraps the function to add limit check
+                        
+                        @limit_decorator
+                        @functools.wraps(func)
+                        async def limited(request, *args, **kwargs):
+                            return await func(request, *args, **kwargs)
+                        
+                        _limiter_cache[cache_key] = limited
             
             return await _limiter_cache[cache_key](request, *args, **kwargs)
         return wrapper
