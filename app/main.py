@@ -3,16 +3,22 @@ import time
 from fastapi import FastAPI, Depends, Body, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
+from sqlalchemy.exc import IntegrityError, DatabaseError
 from contextlib import asynccontextmanager
 from .db.session import get_db
 from .db.base import Base, User
 from .config import engine
 from .auth.jwt import create_access_token, Token, get_current_user, verify_password
 from .auth.apikey import create_api_key, verify_api_key
-from pydantic import BaseModel
+from pydantic import BaseModel,ValidationError
 from typing import Optional
 from .middleware.auth import APIMiddleware
 
+rom .utils.errors import (
+    api_error_handler, http_exception_handler, 
+    validation_exception_handler, db_integrity_handler, 
+    db_connection_handler
+)
 
 
 
@@ -131,3 +137,10 @@ async def hammer(request: Request):
 
 # Add Auth middleware LAST so it runs FIRST (outermost layer)
 app.add_middleware(APIMiddleware)
+
+# Exception handlers (order matters—specific first)
+app.add_exception_handler(ValidationError, validation_exception_handler)
+app.add_exception_handler(IntegrityError, db_integrity_handler)
+app.add_exception_handler(DatabaseError, db_connection_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(Exception, api_error_handler)  # Catch-all last
