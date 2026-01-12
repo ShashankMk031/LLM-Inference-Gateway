@@ -4,7 +4,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import IntegrityError, DatabaseError
 from typing import Optional
 import logging
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ async def api_error_handler(request: Request, exc : Exception)-> JSONResponse:
         message = "Internal server error"
     elif status_code >= 500:
         error_code = "SERVER_ERROR"
-        message = detail
+        message = "Server error"
     elif status_code >= 400:
         error_code = "CLIENT_ERROR"
         message = detail
