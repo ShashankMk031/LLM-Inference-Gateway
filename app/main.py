@@ -14,7 +14,8 @@ from pydantic import BaseModel,ValidationError
 from typing import Optional
 from .middleware.auth import APIMiddleware
 
-rom .utils.errors import (
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from .utils.errors import (
     api_error_handler, http_exception_handler, 
     validation_exception_handler, db_integrity_handler, 
     db_connection_handler
