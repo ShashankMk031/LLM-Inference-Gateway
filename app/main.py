@@ -13,6 +13,7 @@ from .auth.apikey import create_api_key, verify_api_key
 from pydantic import BaseModel,ValidationError
 from typing import Optional
 from .middleware.auth import APIMiddleware
+from .api.infer import router as infer_router
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from .utils.errors import (
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LLM Inference Gateway", lifespan=lifespan)
+app.include_router(infer_router)
 
 
 
@@ -128,7 +130,8 @@ async def protected_apikey(api_key = Depends(verify_api_key)):
 from .utils.ratelimit import limiter, SlowAPIMiddleware as RateLimitMiddleware, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-app.add_middleware(RateLimitMiddleware, limiter=limiter)
+app.state.limiter = limiter
+app.add_middleware(RateLimitMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.get("/hammer")

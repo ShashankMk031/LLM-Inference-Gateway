@@ -4,7 +4,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import IntegrityError, DatabaseError
 from typing import Optional
 import logging
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from fastapi.exceptions import RequestValidationError
 from datetime import datetime
 
