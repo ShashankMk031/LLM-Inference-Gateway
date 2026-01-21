@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from ..api.schemas import InferRequest, InferResponse
-from ..providers.mock import infer
-from ..providers.regostry import InferRequest. InferResponse
+from ..providers.registry import get_provider
 from ..db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.base import RequestLog
@@ -25,20 +24,15 @@ async def infer_endpoint(
             raise HTTPException(503, "Provider unhealthy")
 
         # Provider handles everything
-        result = await provider.infer(req.prompt, req.max_tokens)
-
         start_time = asyncio.get_event_loop().time()
-
-        # Call provider 
-        result = await infer(req.prompt, req.max_tokens, req.model)
-
+        result = await provider.infer(req.prompt, req.max_tokens)
         latency_ms = (asyncio.get_event_loop().time() - start_time) * 1000
 
         # Log request( bonus , matches RequestLog model)
         log = RequestLog(
-            provider=result["provider"],
+            provider=provider.name,
             latency=latency_ms,
-            token_count=result["tokens_used"],
+            token_count=result.tokens_used,
             cost=0.0, # Mock
             status="success"
         )
@@ -49,7 +43,7 @@ async def infer_endpoint(
         return InferResponse(
             output = result.text,
             provider = provider.name,
-            latency_ms = result.latency_ms,
+            latency_ms = latency_ms,
             tokens_used = result.tokens_used
         )
     except ValueError as e:

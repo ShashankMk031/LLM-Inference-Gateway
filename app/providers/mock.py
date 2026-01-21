@@ -23,8 +23,8 @@ class MockProvider(BaseProvider):
             model_used = "mock-model"
         )
 
-        def estimate_cost(self, tokens: int) -> float: 
-            return tokens * 0.0001 
-        
-        async def is_healthy(self) -> bool:
-            return True # MOck always healthy 
+    def estimate_cost(self, tokens: int) -> float: 
+        return tokens * 0.0001 
+    
+    async def is_healthy(self) -> bool:
+        return True # Mock always healthy 

@@ -3,12 +3,13 @@ from typing import Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 
-@dateclass
+@dataclass
 class ProviderResponse:
     text: str
     tokens_used: int
     latency_ms: float
     model_used: str
+
 class BaseProvider(ABC):
     # Abstract base for all LLM providers
 
