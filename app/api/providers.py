@@ -15,7 +15,7 @@ async def get_providers():
     # Map results back to provider names
     providers = []
     for (name, _), result in zip(health_tasks, results):
-        healthy = not isinstance(result, Exception)
+        healthy = result is True
         providers.append({
             "name": name,
             "healthy": healthy

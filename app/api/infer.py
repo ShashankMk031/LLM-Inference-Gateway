@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.base import RequestLog
 from sqlalchemy import insert
 import asyncio
+import time
 
 router = APIRouter(prefix="/infer", tags=["inference"])
 
@@ -24,9 +25,9 @@ async def infer_endpoint(
             raise HTTPException(503, "Provider unhealthy")
 
         # Provider handles everything
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.perf_counter()
         result = await provider.infer(req.prompt, req.max_tokens)
-        latency_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+        latency_ms = (time.perf_counter() - start_time) * 1000
 
         # Log request( bonus , matches RequestLog model)
         log = RequestLog(
