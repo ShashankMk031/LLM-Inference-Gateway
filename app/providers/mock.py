@@ -1,20 +1,30 @@
 import asyncio
 import random
-from typing import Dict, Any
+from .base import BaseProvider, ProviderResponse
 
-async def infer(prompt: str, max_tokens: int = 256, model: str= "mock") -> Dict[str, Any]:
-    # Mock LLM inference with realistic latency.
-    latency_ms = random.uniform(100, 300)
-    await asyncio.sleep(latency_ms / 1000) # Simulate network/processing
+class MockProvider(BaseProvider):
+    @property
+    def name(self) -> str:
+        return "mock_provider"
 
-    # Mock response: first 50 chars + filler
-    preview = prompt[:50].strip()
-    output = f"This is a mock-response to : '{preview}' ,,, (truncated)"
+    async def infer(self, prompt: str, max_tokens: int) -> ProviderResponse:
+        start = asyncio.get_event_loop().time()
+        await asyncio.sleep(random.uniform(0.1,0.3)) 
 
-    return {
-        "output":output,
-        "provider":"mock",
-        "latency_ms": round(latency_ms, 2),
-        "tokens_used":min(len(prompt.split()) * 2, max_tokens),
-        "model":model
-    }
+        preview = prompt[:50].strip()
+        text = f"Mock response to: '{preview}'...({max_tokens} tokens max)"
+
+        latency_ms = (asyncio.get_event_loop().time() - start) * 1000
+
+        return ProviderResponse(
+            text = text,
+            tokens_used = min(len(prompt.split()) * 2, max_tokens),
+            latency_ms = round(latency_ms, 2),
+            model_used = "mock-model"
+        )
+
+    def estimate_cost(self, tokens: int) -> float: 
+        return tokens * 0.0001 
+    
+    async def is_healthy(self) -> bool:
+        return True # Mock always healthy 
