@@ -1,5 +1,6 @@
 from typing import Dict , List 
 from .mock import BaseProvider, MockProvider
+from .openai import OpenAIProvider
 
 _registry: Dict[str, BaseProvider] = { 
     "mock": MockProvider(),
@@ -19,4 +20,7 @@ def list_providers():
     # List all registered providers as (name, provider) tuples
     return list(_registry.items())
 
+_registry.update({
+    "openai": OpenAIProvider(),
+})
 # 1-Line registration : eg: register_provider("openai", OpenAIProvider()) 
