@@ -47,7 +47,7 @@ class OpenAIProvider(BaseProvider):
         except openai.BadRequestError:
             raise ValueError(f"Invalid request for model {self.model}")
         except (openai.AuthenticationError, openai.PermissionDeniedError):
-            raise ValueError("OpenAI auth/confid invalid")
+            raise ValueError("OpenAI authentication/credentials invalid")
         except openai.APITimeoutError:
             raise ValueError("OpenAI request timed out")
 
