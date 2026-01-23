@@ -1,6 +1,7 @@
 from typing import Dict , List 
 from .mock import BaseProvider, MockProvider
 from .openai import OpenAIProvider
+from .gemini import GeminiProvider
 
 _registry: Dict[str, BaseProvider] = { 
     "mock": MockProvider(),
@@ -23,4 +24,5 @@ def list_providers():
 _registry.update({
     "openai": OpenAIProvider(),
 })
+_registry["gemini"] = GeminiProvider()
 # 1-Line registration : eg: register_provider("openai", OpenAIProvider()) 
