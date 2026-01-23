@@ -26,42 +26,43 @@ class OpenAIProvider(BaseProvider):
         retry = retry_if_exception_type((openai.APIConnectionError, openai.RateLimitError))
     )
 
-    async def infer(self,prompt: str, max_tokens:int) -> ProviderResponse:
-        start=asyncio.get_event_loop().time()
+    async def infer(self, prompt: str, max_tokens: int) -> ProviderResponse:
+        start = asyncio.get_event_loop().time()
         try:
-            response= await self.client.chat.completions.create(
-                model = self.model,
-                messages = [{"role":"user", "content":prompt}],
-                max_tokens = max_tokens,
-                temperature = 0.1
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=0.1
             )
 
+            if not response.choices:
+                raise RuntimeError("OpenAI returned no choices")
             choice = response.choices[0]
             text = choice.message.content or ""
             tokens_used = (
                 choice.finish_reason == "length" and max_tokens
-                or getattr(response.usage, 'total_tokens', len(prompt.spilt()) * 2)
+                or getattr(response.usage, 'total_tokens', len(prompt.split()) * 2)
             )
+        except openai.BadRequestError:
+            raise ValueError(f"Invalid request for model {self.model}")
+        except (openai.AuthenticationError, openai.PermissionDeniedError):
+            raise ValueError("OpenAI auth/confid invalid")
+        except openai.APITimeoutError:
+            raise ValueError("OpenAI request timed out")
 
-            except openai.BadRequestError :
-                raise ValueError(f"Invalid request for model {self.model}")
-            except (openai.AuthenticationError, openai.PermissionDeniedError):
-                raise ValueError("OpenAI auth/confid invalid")
-            except openai.APITimeoutError:
-                raise RuntimeError("OpenAI Timeout")
-            
-            latency_ms = (aysncio.get_event_loop().time() - start) * 1000
+        latency_ms = (asyncio.get_event_loop().time() - start) * 1000
 
-            return ProviderResponse(
-                text=text,
-                tokens_used =tokens_used,
-                latency_ms=round(latency_ms,2),
-                model_used = self.model
-            )
-        
-        def estimate_cost(self, tokens: int) -> float:
-            # GPT-4o-mini cost estimation : : $0.15/1M input, $0.60/1M output → avg $0.375/1M
-            return (tokens / 1_000_000) * 0.375
-        
-        async def is_healthy(self) -> bool:
-            return bool(os.getenv("OPENAI_API_KEY"))
+        return ProviderResponse(
+            text=text,
+            tokens_used=tokens_used,
+            latency_ms=round(latency_ms, 2),
+            model_used=self.model
+        )
+
+    def estimate_cost(self, tokens: int) -> float:
+        # GPT-4o-mini cost estimation: $0.15/1M input, $0.60/1M output → avg $0.375/1M
+        return (tokens / 1_000_000) * 0.375
+
+    async def is_healthy(self) -> bool:
+        return bool(os.getenv("OPENAI_API_KEY"))
