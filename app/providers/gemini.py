@@ -1,6 +1,6 @@
 import google.generativeai as genai
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from .base import BaseProvider , ProviderResponse
+from .base import BaseProvider, ProviderResponse, ProviderPermanentError, ProviderTemporaryError
 import os
 import asyncio
 from typing import Any
@@ -19,7 +19,7 @@ class GeminiProvider(BaseProvider):
     @retry(
         stop = stop_after_attempt(3),
         wait = wait_exponential(multiplier=1, min=4, max=10),
-        retry = retry_if_exception_type(Exception)
+        retry = retry_if_exception_type(ProviderTemporaryError)
     )
 
     async def infer(self, prompt: str, max_tokens: int) -> ProviderResponse:
@@ -32,7 +32,7 @@ class GeminiProvider(BaseProvider):
                 None,
                 lambda: self.model.generate_content(
                     prompt,
-                    generate_config={
+                    generation_config={
                         "max_output_tokens": max_tokens,
                         "temperature": 0.1
                     }
@@ -55,7 +55,7 @@ class GeminiProvider(BaseProvider):
         return ProviderResponse(
             text=text,
             tokens_used=tokens_used,
-            latency_ms=round(latency_ms.2),
+            latency_ms=round(latency_ms, 2),
             model_used = self.model_name
         )
     
