@@ -9,6 +9,7 @@ class ProviderResponse:
     tokens_used: int
     latency_ms: float
     model_used: str
+    cost: float
 
 class BaseProvider(ABC):
     # Abstract base for all LLM providers

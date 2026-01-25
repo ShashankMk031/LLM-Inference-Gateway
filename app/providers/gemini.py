@@ -56,7 +56,8 @@ class GeminiProvider(BaseProvider):
             text=text,
             tokens_used=tokens_used,
             latency_ms=round(latency_ms, 2),
-            model_used = self.model_name
+            model_used = self.model_name,
+            cost = self.estimate_cost(tokens_used)
         )
     
     def estimate_cost(self, tokens:int) -> float:

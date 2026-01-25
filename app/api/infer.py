@@ -1,49 +1,53 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, BackgroundTasks
 from ..api.schemas import InferRequest, InferResponse
 from ..services.inference_service import run_inference
 from ..providers.base import ProviderTemporaryError, ProviderPermanentError
 from ..db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.base import RequestLog
+from ..config import AsyncSessionLocal
 import logging
+from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/infer", tags=["inference"])
 
+async def log_request_background(log_data: dict):
+    """
+    Background task to log request details to the database.
+    Uses a fresh session to avoid blocking the main request/response cycle.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            log = RequestLog(**log_data)
+            session.add(log)
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Failed to log request in background: {e}", exc_info=True)
+            await session.rollback()
+
 @router.post("/", response_model=InferResponse)
 async def infer_endpoint(
     request: Request,
     req: InferRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Smart Inference Endpoint.
-    - Authn: Validated by Middleware (request.state.api_key)
-    - Routing: Handled by InferenceService (Latency/Cost optimized)
-    - Fallback: Handled by InferenceService (Retries/Failover)
-    - Logging: Async DB write
+    - Authn: Validated by Middleware
+    - Routing: Handled by InferenceService
+    - Logging: Non-blocking background task
     """
     try:
-        # Delegate to high-level service
-        # service returns ProviderResponse(text, tokens_used, latency_ms, model_used)
-        result = await run_inference(req.model, req.prompt, req.max_tokens)
+        # Extract api_key_id from authenticated request state
+        api_key_id = request.state.api_key.id
         
-        # Async Logging
-        try:
-            log = RequestLog(
-                provider=result.model_used,
-                latency=result.latency_ms,
-                token_count=result.tokens_used,
-                cost=0.0, # TODO: Implement cost calculation based on provider rates
-                status="success"
-            )
-            db.add(log)
-            await db.commit()
-        except Exception as e:
-            # excessive logging failure should not fail the request
-            logger.error(f"Failed to log request: {e}", exc_info=True)
-
+        # Delegate to high-level service
+        result = await run_inference(req.model, req.prompt, req.max_tokens, api_key_id, background_tasks)
+        
+        # Return immediately
         return InferResponse(
             output=result.text,
             provider=result.model_used,
@@ -54,7 +58,6 @@ async def infer_endpoint(
 
     except (ProviderTemporaryError, ProviderPermanentError) as e:
         logger.error(f"Inference failed: {e}")
-        # Service exhausted retries/fallbacks
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
