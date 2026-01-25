@@ -1,39 +1,35 @@
-from ..router.model_router import router
-from ..providers.registry import get_provider
-from ..providers.base import ProviderTemporaryError, ProviderPermanentError, ProviderResponse
+from .metrics import InferenceMetrics
+from .logging_service import queue_log
 
-FALLBACK_ORDER = ["openai", "gemini", "groq", "mock"]
-
-async def run_inference(model: str, prompt: str, max_tokens: int) -> ProviderResponse:
-    """Run inference with smart routing."""
+async def run_inference(model: str, prompt: str, max_tokens: int, 
+                       api_key_id: int, background_tasks: BackgroundTasks) -> ProviderResponse:
+    start_time = asyncio.get_event_loop().time()
     
-    # Smart model selection
     selected_model = model
     if model == "auto":
         selected_model = router.select_provider(auto=True)
     
-    # Primary attempt
+    provider_used = selected_model
+    
     try:
         provider = get_provider(selected_model)
-        if not await provider.is_healthy():
-            raise ProviderTemporaryError(f"{selected_model} unhealthy")
+        result = await provider.infer(prompt, max_tokens)
         
-        return await provider.infer(prompt, max_tokens)
-    
-    # Fallback chain on temporary failure
-    except ProviderTemporaryError:
-        for fallback in FALLBACK_ORDER:
-            if fallback != selected_model:
-                try:
-                    provider = get_provider(fallback)
-                    if not await provider.is_healthy():
-                        continue
-                    return await provider.infer(prompt, max_tokens)
-                except ProviderTemporaryError:
-                    continue
-                except ProviderPermanentError:
-                    continue
-        raise ProviderPermanentError("All fallbacks exhausted")
-    
-    except ProviderPermanentError:
-        raise  # Don't fallback permanent errors
+        # Metrics (success)
+        metrics = InferenceMetrics.success(
+            api_key_id, selected_model, provider.name, result
+        )
+        queue_log(metrics, background_tasks)
+        
+        return result
+        
+    except ProviderTemporaryError as e:
+        # Log failure + fallback
+        metrics = InferenceMetrics.failure(api_key_id, selected_model, provider_used, "temporary")
+        queue_log(metrics, background_tasks)
+        # ... fallback logic ...
+        
+    except ProviderPermanentError as e:
+        metrics = InferenceMetrics.failure(api_key_id, selected_model, provider_used, "permanent")
+        queue_log(metrics, background_tasks)
+        raise

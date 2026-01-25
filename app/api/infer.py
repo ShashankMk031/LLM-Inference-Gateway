@@ -6,6 +6,7 @@ from ..db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.base import RequestLog
 import logging
+from fastapi import BackgroundTasks
 
 logger = logging.getLogger(__name__)
 
@@ -61,3 +62,19 @@ async def infer_endpoint(
     except Exception as e:
         logger.error(f"Unexpected inference error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal inference error")
+
+@router.post("/", response_model=InferResponse)
+async def infer_endpoint(
+    req: InferRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    # Pass api_key_id from middleware context
+    api_key_id = request.state.api_key.id
+    
+    result = await run_inference(
+        req.model, req.prompt, req.max_tokens, 
+        api_key_id, background_tasks
+    )
+    
+    return InferResponse(...)
