@@ -16,11 +16,14 @@ class MockProvider(BaseProvider):
 
         latency_ms = (asyncio.get_event_loop().time() - start) * 1000
 
+        cost = self.estimate_cost(min(len(prompt.split()) * 2, max_tokens))
+
         return ProviderResponse(
             text = text,
             tokens_used = min(len(prompt.split()) * 2, max_tokens),
             latency_ms = round(latency_ms, 2),
-            model_used = "mock-model"
+            model_used = "mock-model",
+            cost = cost
         )
 
     def estimate_cost(self, tokens: int) -> float: 

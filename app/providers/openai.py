@@ -57,7 +57,8 @@ class OpenAIProvider(BaseProvider):
             text=text,
             tokens_used=tokens_used,
             latency_ms=round(latency_ms, 2),
-            model_used=self.model
+            model_used=self.model,
+            cost=self.estimate_cost(tokens_used)
         )
 
     def estimate_cost(self, tokens: int) -> float:
