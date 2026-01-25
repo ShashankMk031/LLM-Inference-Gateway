@@ -39,13 +39,30 @@ class ModelRouter:
         if not candidates:
             raise ValueError("No healthy providers available")
         
-        # Weighted score : Lower = better
+        # Compute min/max for normalization
+        avg_latencies = [p.avg_latency_ms for p in candidates]
+        costs = [p.cost_per_1k for p in candidates]
+        
+        min_latency = min(avg_latencies)
+        max_latency = max(avg_latencies)
+        min_cost = min(costs)
+        max_cost = max(costs)
+        
+        # Weighted score: apply min-max normalization
         scored = [] 
         for p in candidates:
-            # Normalize : latency / 100 + cost * 1000 ( relative scales)
-            latency_score = p.avg_latency_ms / 100.0
-            cost_score = p.cost_per_1k * 1000.0
-            total_score = (latency_score * self.LATENCY_WEIGHT + cost_score * self.COST_WEIGHT)
+            # Normalize latency and cost to 0..1 (inverted since lower is better)
+            latency_range = max_latency - min_latency
+            normalized_latency = 0.0
+            if latency_range > 0:
+                normalized_latency = (p.avg_latency_ms - min_latency) / latency_range
+            
+            cost_range = max_cost - min_cost
+            normalized_cost = 0.0
+            if cost_range > 0:
+                normalized_cost = (p.cost_per_1k - min_cost) / cost_range
+            
+            total_score = normalized_latency * self.LATENCY_WEIGHT + normalized_cost * self.COST_WEIGHT
             scored.append((total_score, p.name))
 
         scored.sort() # Lowest score first
