@@ -1,11 +1,10 @@
 from .metrics import InferenceMetrics
 from .logging_service import queue_log
 import asyncio
-from fastapi import BackgroundTasks, APIRouter
-from ..providers.base import get_provider, ProviderResponse, ProviderTemporaryError, ProviderPermanentError
-
-# Create router for model routing
-router = APIRouter()
+from fastapi import BackgroundTasks
+from ..providers.registry import get_provider
+from ..providers.base import ProviderResponse, ProviderTemporaryError, ProviderPermanentError
+from ..router.model_router import router
 
 async def run_inference(model: str, prompt: str, max_tokens: int, 
                        api_key_id: int, background_tasks: BackgroundTasks) -> ProviderResponse:

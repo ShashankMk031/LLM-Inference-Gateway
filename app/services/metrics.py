@@ -21,7 +21,7 @@ class InferenceMetrics:
             provider_used=provider_name,
             latency_ms=result.latency_ms,
             tokens_used=result.tokens_used,
-            cost=result.provider.estimate_cost(result.tokens_used)
+            cost=result.cost
         )
 
     @classmethod
