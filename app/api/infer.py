@@ -1,51 +1,63 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from ..api.schemas import InferRequest, InferResponse
-from ..providers.registry import get_provider
+from ..services.inference_service import run_inference
+from ..providers.base import ProviderTemporaryError, ProviderPermanentError
 from ..db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.base import RequestLog
-from sqlalchemy import insert
-import asyncio
-import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/infer", tags=["inference"])
 
 @router.post("/", response_model=InferResponse)
 async def infer_endpoint(
     request: Request,
-    req:InferRequest,
-    db:AsyncSession=Depends(get_db)
+    req: InferRequest,
+    db: AsyncSession = Depends(get_db)
 ):
-    # LLM Inference endpoint via registered providers
-    # Middleware already validated API key -> request.state.api_key
+    """
+    Smart Inference Endpoint.
+    - Authn: Validated by Middleware (request.state.api_key)
+    - Routing: Handled by InferenceService (Latency/Cost optimized)
+    - Fallback: Handled by InferenceService (Retries/Failover)
+    - Logging: Async DB write
+    """
     try:
-        provider = get_provider(req.model) 
-
-        if not await provider.is_healthy():
-            raise HTTPException(503, "Provider unhealthy")
-
-        # Provider handles everything
-        start_time = time.perf_counter()
-        result = await provider.infer(req.prompt, req.max_tokens)
-        latency_ms = (time.perf_counter() - start_time) * 1000
-
-        # Log request( bonus , matches RequestLog model)
-        log = RequestLog(
-            provider=provider.name,
-            latency=latency_ms,
-            token_count=result.tokens_used,
-            cost=0.0, # Mock
-            status="success"
-        )
-        db.add(log)
-        await db.commit()
+        # Delegate to high-level service
+        # service returns ProviderResponse(text, tokens_used, latency_ms, model_used)
+        result = await run_inference(req.model, req.prompt, req.max_tokens)
         
-        # Convert to response model
+        # Async Logging
+        try:
+            log = RequestLog(
+                provider=result.model_used,
+                latency=result.latency_ms,
+                token_count=result.tokens_used,
+                cost=0.0, # TODO: Implement cost calculation based on provider rates
+                status="success"
+            )
+            db.add(log)
+            await db.commit()
+        except Exception as e:
+            # excessive logging failure should not fail the request
+            logger.error(f"Failed to log request: {e}", exc_info=True)
+
         return InferResponse(
-            output = result.text,
-            provider = provider.name,
-            latency_ms = latency_ms,
-            tokens_used = result.tokens_used
+            output=result.text,
+            provider=result.model_used,
+            latency_ms=result.latency_ms,
+            tokens_used=result.tokens_used,
+            model=result.model_used
         )
+
+    except (ProviderTemporaryError, ProviderPermanentError) as e:
+        logger.error(f"Inference failed: {e}")
+        # Service exhausted retries/fallbacks
+        raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected inference error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal inference error")
