@@ -41,22 +41,12 @@ async def infer_endpoint(
     - Logging: Non-blocking background task
     """
     try:
+        # Extract api_key_id from authenticated request state
+        api_key_id = request.state.api_key.id
+        
         # Delegate to high-level service
-        result = await run_inference(req.model, req.prompt, req.max_tokens)
+        result = await run_inference(req.model, req.prompt, req.max_tokens, api_key_id, background_tasks)
         
-        # Prepare log data (using result fields including potentially missing ones safely)
-        # Note: result has .cost now
-        log_data = {
-            "provider": result.model_used,
-            "latency": result.latency_ms,
-            "token_count": result.tokens_used,
-            "cost": getattr(result, "cost", 0.0), 
-            "status": "success"
-        }
-        
-        # Schedule the background log
-        background_tasks.add_task(log_request_background, log_data)
-
         # Return immediately
         return InferResponse(
             output=result.text,
@@ -68,8 +58,6 @@ async def infer_endpoint(
 
     except (ProviderTemporaryError, ProviderPermanentError) as e:
         logger.error(f"Inference failed: {e}")
-        # Log failure in background? (Optional, but good practice. 
-        # Here we skip complexity as we don't have result stats)
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
