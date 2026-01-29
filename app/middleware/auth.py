@@ -18,9 +18,11 @@ cache_lock = asyncio.Lock()
 
 class APIMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request:Request, call_next):
-        # Skip health/root and auth endpoints
+        # Skip health/root/frontend and auth endpoints
         # Also skip analytics (uses JWT)
-        if request.url.path in ["/", "/health", "/login", "/api-keys", "/docs", "/openapi.json"] or request.url.path.startswith("/analytics"):
+        if (request.url.path in ["/", "/health", "/login", "/api-keys", "/docs", "/openapi.json"] 
+            or request.url.path.startswith("/analytics")
+            or request.url.path.startswith("/frontend")):
             return await call_next(request)
         
         api_key_header = request.headers.get("X-API-KEY") or request.headers.get("Authorization")

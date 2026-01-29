@@ -48,11 +48,24 @@ app = FastAPI(title="LLM Inference Gateway", lifespan=lifespan)
 app.include_router(infer_router)
 app.include_router(analytics_router)
 
+# Serve Frontend Locally
+from fastapi.staticfiles import StaticFiles
+import os
 
+if os.path.exists("frontend"):
+    app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
+
+
+
+from fastapi.responses import FileResponse
+import os
 
 @app.get("/")
 async def root():
-    return {"message": "Hello, World!"}
+    # Serve the frontend dashboard by default
+    if os.path.exists("frontend/index.html"):
+        return FileResponse("frontend/index.html")
+    return {"message": "LLM Inference Gateway API Running"}
 
 
 @app.get("/health")
