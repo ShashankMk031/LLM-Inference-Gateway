@@ -71,7 +71,6 @@ class ModelRouter:
 PROVIDER_METRICS = [ 
     ProviderMetrics("openai", True, 250, 0.375),
     ProviderMetrics("gemini", True, 180, 0.1875),
-    ProviderMetrics("mock", True, 200, 0.0),
 ]
 
 router = ModelRouter(PROVIDER_METRICS)

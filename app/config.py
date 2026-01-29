@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # Allow extra env vars (OpenAI, Gemini keys, etc.)
 
 settings = Settings()
 
@@ -27,7 +28,9 @@ engine = create_async_engine(
     DATABASE_URL, 
     echo=True, # Logs SQL 
     pool_pre_ping=True, # Checks connection before using it 
-    pool_recycle=3600 # Recycle connections every hour
+    pool_recycle=3600, # Recycle connections every hour
+    pool_size=20,  # Support 20 concurrent connections
+    max_overflow=10  # Allow burst to 30 total
 )
 
 AsyncSessionLocal = async_sessionmaker(

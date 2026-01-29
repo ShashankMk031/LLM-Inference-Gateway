@@ -6,7 +6,7 @@ from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError, DatabaseError
 from contextlib import asynccontextmanager
 from .db.session import get_db
-from .db.base import Base, User
+from .db.base import Base, User, IdempotencyKey
 from .config import engine
 from .auth.jwt import create_access_token, Token, get_current_user, verify_password
 from .auth.apikey import create_api_key, verify_api_key
@@ -14,6 +14,7 @@ from pydantic import BaseModel,ValidationError
 from typing import Optional
 from .middleware.auth import APIMiddleware
 from .api.infer import router as infer_router
+from .api.analytics import router as analytics_router
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from .utils.errors import (
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LLM Inference Gateway", lifespan=lifespan)
 app.include_router(infer_router)
+app.include_router(analytics_router)
 
 
 
