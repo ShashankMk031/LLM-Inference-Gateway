@@ -1,28 +1,19 @@
-from typing import Dict , List 
-from .mock import BaseProvider, MockProvider
+# Central registry for all providers
 from .openai import OpenAIProvider
 from .gemini import GeminiProvider
 
-_registry: Dict[str, BaseProvider] = { 
-    "mock": MockProvider(),
+# Singleton instances - only OpenAI and Gemini
+_providers = {
+    "openai": OpenAIProvider(),
+    "gemini": GeminiProvider(),
 }
 
-def register_provider(name : str, provider: BaseProvider):
-    # Register new provider
-    _registry[name] = provider
+def get_provider(name: str):
+    """Get provider by name. Raises ValueError if not found."""
+    if name not in _providers:
+        raise ValueError(f"Unknown provider: {name}. Available: {list(_providers.keys())}")
+    return _providers[name]
 
-def get_provider(name: str) -> BaseProvider:
-    # Get provider by name or raise 400 error
-    if name not in _registry:
-        raise ValueError(f"Unknown provider: {name}")
-    return _registry[name]
-
-def list_providers():
-    # List all registered providers as (name, provider) tuples
-    return list(_registry.items())
-
-_registry.update({
-    "openai": OpenAIProvider(),
-})
-_registry["gemini"] = GeminiProvider()
-# 1-Line registration : eg: register_provider("openai", OpenAIProvider()) 
+def get_all_providers():
+    """Get all registered providers."""
+    return list(_providers.values())

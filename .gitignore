@@ -3,3 +3,7 @@ __pycache__/
 .python_version
 .env
 .DS_Store
+
+INTERVIEW_NOTES.md
+RESUME_BULLETS.md
+*.pyc

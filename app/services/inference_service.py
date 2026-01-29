@@ -4,6 +4,7 @@ import asyncio
 from fastapi import BackgroundTasks
 from ..providers.registry import get_provider
 from ..providers.base import ProviderResponse, ProviderTemporaryError, ProviderPermanentError
+from tenacity import RetryError
 from ..router.model_router import router
 
 async def run_inference(model: str, prompt: str, max_tokens: int, 
@@ -15,6 +16,7 @@ async def run_inference(model: str, prompt: str, max_tokens: int,
         selected_model = router.select_provider(auto=True)
     
     provider_used = selected_model
+    provider = None # Initialize 
     
     try:
         provider = get_provider(selected_model)
@@ -31,6 +33,25 @@ async def run_inference(model: str, prompt: str, max_tokens: int,
         queue_log(metrics, background_tasks)
         
         return result
+
+    except RetryError as e:
+        # Unwrap tenacity RetryError
+        cause = e.last_attempt.exception()
+        duration = asyncio.get_event_loop().time() - start_time
+        
+        # Log failure
+        error_type = "temporary" # Retries usually imply temporary issues
+        if isinstance(cause, ProviderPermanentError):
+            error_type = "permanent"
+            
+        metrics = InferenceMetrics.failure(api_key_id, selected_model, provider_used, error_type)
+        metrics.latency_ms = duration * 1000
+        queue_log(metrics, background_tasks)
+        
+        # Re-raise the cause if it's one of our known types, else re-raise original
+        if cause:
+            raise cause
+        raise e
         
     except ProviderTemporaryError as e:
         # Compute latency

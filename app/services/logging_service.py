@@ -23,7 +23,9 @@ async def log_metrics(metrics: InferenceMetrics):
             # Current RequestLog: provider, latency, token_count, cost, status.
             
             db_log = {
+                "api_key_id": metrics.api_key_id,
                 "provider": metrics.provider_used,
+                "model": metrics.model_requested,
                 "latency": metrics.latency_ms,
                 "token_count": metrics.tokens_used,
                 "cost": metrics.cost,

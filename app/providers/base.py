@@ -3,6 +3,15 @@ from typing import Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 
+# Provider-specific exceptions
+class ProviderTemporaryError(Exception):
+    """Temporary provider error - can retry with fallback"""
+    pass
+
+class ProviderPermanentError(Exception):
+    """Permanent provider error - don't retry"""
+    pass
+
 @dataclass
 class ProviderResponse:
     text: str
