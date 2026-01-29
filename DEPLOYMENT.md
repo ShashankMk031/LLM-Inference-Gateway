@@ -4,7 +4,7 @@ This guide outlines how to deploy the LLM Inference Gateway to a production envi
 
 ## 1. Environment Variables
 
-Ensure the following variables are set in your production environment (e.g., Railway, Heroku, AWS Secrets):
+Ensure the following variables are set in your production environment (e.g., Vercel, Railway, Heroku, AWS Secrets):
 
 | Variable         | Description                              | Example                                       |
 | ---------------- | ---------------------------------------- | --------------------------------------------- |
@@ -13,52 +13,55 @@ Ensure the following variables are set in your production environment (e.g., Rai
 | `OPENAI_API_KEY` | Key for OpenAI Provider                  | `sk-...`                                      |
 | `GEMINI_API_KEY` | Key for Google Gemini                    | `AIza...`                                     |
 | `REDIS_URL`      | (Optional) For distributed rate limiting | `redis://host:6379/0`                         |
+| `OPENAI_TIMEOUT` | Timeout in seconds                       | `30`                                          |
 
-## 2. Docker Deployment (Recommended)
+## 2. Vercel: Serverless Data Extraction
 
-Create a `Dockerfile` in the root (if not present):
+The recommended architecture for high scalability is **Vercel** for the API/Extraction/Frontend layer and a dedicated **Cloud Database** (Neon/Supabase) for storage.
+
+This approach ensures:
+
+- **Separation of Concerns**: The extraction logic (API) scales to zero independently of the storage.
+- **Zero Access Exposure**: The API extracts data via secure connection strings (Env Vars), but the database itself is never directly exposed to the internet.
+
+### Configuration
+
+1.  **Frontend/API**: Included in this repo (`frontend/` + `api/index.py`).
+2.  **Routing**: `vercel.json` maps API calls to Python functions and static assets to CDN.
+
+### Deployment Steps
+
+1.  **Install Vercel CLI**: `npm i -g vercel`
+2.  **Deploy**:
+    ```bash
+    vercel
+    ```
+3.  **Secure Connection**:
+    - In Vercel Dashboard, go to **Settings > Environment Variables**.
+    - Add your `DATABASE_URL` (from Neon/Supabase). This is the _only_ link between the extraction layer and the storage.
+
+> **Note**: Vercel functions are ephemeral. You must run database migrations (table creation) externally or via a one-off script, as the function itself handles _runtime extraction_, not _schema management_.
+
+## 3. Docker Deployment (Containerized)
+
+For a self-contained deployment (e.g. AWS EC2, DigitalOcean):
 
 ```dockerfile
 FROM python:3.12-slim
-
 WORKDIR /app
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
-
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 ```
 
-**Build and Run:**
+**Run:**
 
 ```bash
-docker build -t llm-gateway .
 docker run -p 8000:8000 --env-file .env llm-gateway
 ```
 
-## 3. Database Migrations
+## 4. Scaling Logic
 
-This project uses SQLAlchemy `Base.metadata.create_all` for simplicity in `app/main.py`.
-For production, it is recommended to init **Alembic**:
-
-1. `alembic init alembic`
-2. Update `alembic.ini` with DB URL.
-3. Import models in `env.py`.
-4. Run `alembic revision --autogenerate -m "Initial"`
-5. Run `alembic upgrade head`
-
-## 4. Health Checks
-
-Configure your load balancer (e.g., AWS ALB) to check:
-
-- **Path**: `/health`
-- **Expected Status**: `200 OK`
-- **Body**: `{"status": "healthy"}`
-
-## 5. Scaling
-
-- **Horizontal**: Deploy multiple replicas of the Docker container.
-- **Vertical**: Increase CPU for JSON parsing/validation heavy loads.
-- **Database**: Use a managed RDS/Postgres with connection pooling (PgBouncer) if connections exceed 100.
+- **Extraction Layer (Vercel)**: Automatically scales to 1,000+ concurrent extractions.
+- **Storage Layer (DB)**: Use a connection pooler (PgBouncer) on your DB provider to handle the influx of extraction requests.

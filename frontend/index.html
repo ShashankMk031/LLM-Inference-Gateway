@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Inference Gateway</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; background: #f5f5f5; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        h2 { margin-top: 0; color: #333; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        input, select, textarea { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #0070f3; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 500; }
+        button:hover { background: #0051a2; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .response { background: #f8f9fa; padding: 1rem; border-radius: 4px; border-left: 4px solid #0070f3; margin-top: 1rem; white-space: pre-wrap; font-family: monospace; }
+        .meta { color: #666; font-size: 0.9rem; margin-top: 0.5rem; }
+        .hidden { display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; }
+        .error { color: red; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <h1>LLM Inference Gateway</h1>
+
+    <!-- Configuration -->
+    <div class="card">
+        <h2>Configuration</h2>
+        <div class="form-group">
+            <label for="apiKey">API Key (X-API-Key)</label>
+            <input type="password" id="apiKey" placeholder="Enter your API Key">
+        </div>
+    </div>
+
+    <!-- Inference -->
+    <div class="card">
+        <h2>Data Inference</h2>
+        <div class="form-group">
+            <label for="model">Model</label>
+            <select id="model">
+                <option value="auto">Auto (Smart Routing)</option>
+                <option value="openai">OpenAI (GPT-4o)</option>
+                <option value="gemini">Gemini (1.5 Flash)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt" rows="4" placeholder="Ask something..."></textarea>
+        </div>
+        <button onclick="runInference()" id="inferBtn">Run Inference</button>
+        <div id="inferenceResult" class="hidden">
+            <div class="response" id="responseText"></div>
+            <div class="meta" id="responseMeta"></div>
+        </div>
+        <div id="inferError" class="error"></div>
+    </div>
+
+    <!-- Admin Analytics -->
+    <div class="card">
+        <h2>Admin Analytics</h2>
+        <div id="loginSection">
+            <div class="form-group">
+                <input type="email" id="adminEmail" placeholder="admin@example.com" value="admin@example.com">
+            </div>
+            <div class="form-group">
+                <input type="password" id="adminPass" placeholder="Password" value="adminpassword">
+            </div>
+            <button onclick="adminLogin()">Login</button>
+        </div>
+        
+        <div id="analyticsSection" class="hidden">
+            <button onclick="fetchAnalytics()">Refresh Data</button>
+            <div id="analyticsTable"></div>
+        </div>
+        <div id="adminError" class="error"></div>
+    </div>
+
+    <script>
+        // Determine API URL (localhost or Vercel)
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://127.0.0.1:8000' 
+            : ''; 
+
+        // State
+        let jwtToken = '';
+
+        async function runInference() {
+            const apiKey = document.getElementById('apiKey').value;
+            const model = document.getElementById('model').value;
+            const prompt = document.getElementById('prompt').value;
+            const btn = document.getElementById('inferBtn');
+            const resDiv = document.getElementById('inferenceResult');
+            const errorDiv = document.getElementById('inferError');
+
+            if (!apiKey) {
+                alert('Please enter an API Key');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = 'Running...';
+            errorDiv.innerText = '';
+            resDiv.classList.add('hidden');
+
+            try {
+                const res = await fetch(`${API_BASE}/infer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey,
+                        'Idempotency-Key': 'req-' + Date.now() // Simple client-side ID
+                    },
+                    body: JSON.stringify({ model, prompt, max_tokens: 100 })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.detail || 'Inference failed');
+
+                document.getElementById('responseText').innerText = data.output;
+                document.getElementById('responseMeta').innerText = 
+                    `Provider: ${data.provider} | Latency: ${data.latency_ms.toFixed(0)}ms | Cost: $${data.cost?.toFixed(6) || 0}`;
+                resDiv.classList.remove('hidden');
+
+            } catch (err) {
+                errorDiv.innerText = err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Run Inference';
+            }
+        }
+
+        async function adminLogin() {
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPass').value;
+            const errDiv = document.getElementById('adminError');
+
+            try {
+                const res = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+                jwtToken = data.access_token;
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('analyticsSection').classList.remove('hidden');
+                fetchAnalytics();
+
+            } catch (err) {
+                errDiv.innerText = err.message;
+            }
+        }
+
+        async function fetchAnalytics() {
+            try {
+                const res = await fetch(`${API_BASE}/analytics/usage-by-key`, {
+                    headers: { 'Authorization': `Bearer ${jwtToken}` }
+                });
+                const data = await res.json();
+                
+                let html = '<table><thead><tr><th>Key ID</th><th>Tokens</th><th>Cost</th><th>Requests</th></tr></thead><tbody>';
+                data.forEach(row => {
+                    html += `<tr>
+                        <td>${row.api_key_id}</td>
+                        <td>${row.total_tokens}</td>
+                        <td>$${row.total_cost.toFixed(6)}</td>
+                        <td>${row.request_count}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('analyticsTable').innerHTML = html;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
